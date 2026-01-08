@@ -18,5 +18,4 @@ async function logout() {
     window.location.href = '/index.html';
 }
 
-// Initialize the application when the DOM is fully loaded or scripts are executed
 document.addEventListener('DOMContentLoaded', init);
