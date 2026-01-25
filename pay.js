@@ -8,8 +8,7 @@ async function renderPay(cont) {
         <div class="search-container">
             <input type="text" id="studentSearch" placeholder="Търсене по ЕГН или Курсов №..." 
                    autocomplete="off" oninput="handleSearch(this.value)">
-            <div id="searchResults" style="display: none;">
-            </div>
+            <div id="searchResults" style="display: none;"></div>
         </div>
         <div id="paymentDetails" style="margin-top: 20px;"></div>
     `;
@@ -18,7 +17,7 @@ async function renderPay(cont) {
         const resp = await fetch('/api/students');
         allStudents = await resp.json();
     } catch (e) {
-        console.log(e);
+        console.error(e);
     }
 }
 
@@ -38,7 +37,7 @@ function handleSearch(q) {
 
     if (res.length > 0) {
         resDiv.innerHTML = res.map(s => `
-            <div class="search-item" onclick="selStudent( ${s.id} )">
+            <div class="search-item" onclick="selStudent(${s.id})">
                 <strong>${s.first_name} ${s.last_name}</strong><br>
                 <small>ЕГН: ${s.egn} | Клас: ${s.class_number} | Стая: ${s.room_number || 'N/A'}</small>
             </div>
@@ -85,7 +84,6 @@ async function selStudent(id) {
             <div style="background: #f8fafc; padding: 15px; border-radius: 5px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
                 <h4 style="margin-top: 0;">${s.first_name} ${s.last_name}</h4>
                 <p>Клас: ${s.class_number} | Основна такса: ${s.base_fee} €</p>
-
             </div>
             
             <div style="margin-bottom: 15px;">
@@ -100,7 +98,6 @@ async function selStudent(id) {
         `;
 
         currentData = data;
-
 
         const rendrTable = (yr) => {
             const filt = mnths.filter(m => m.year == yr);
@@ -135,8 +132,6 @@ async function selStudent(id) {
                             <td>${dateTxt}</td>
                         </tr>
                     `;
-
-
                 });
             }
 
@@ -168,7 +163,7 @@ function openPayModal() {
     if (!currentData) return;
 
     const unpd = currentData.months.filter(m => !m.is_paid);
-    const tot = unpd.reduce((sum, m) => sum + parseFloat(m.amount_due), 0).toFixed(2);
+    const tot = unpd.reduce((sum, m) => sum + (parseFloat(m.amount_due) || 0), 0).toFixed(2);
 
     const mdl = document.createElement('div');
     mdl.id = 'payModal';
@@ -189,13 +184,11 @@ function openPayModal() {
                     <option value="cash">В брой</option>
                     <option value="bank_transfer">По банков път</option>
                 </select>
-
             </div>
             <div id="payResult" style="margin: 15px 0; padding: 10px; background: #f0f9ff; border-radius: 5px; display: none;"></div>
             <div style="text-align: right;">
                 <button onclick="closePayModal()" style="margin-right: 10px;">Откажи</button>
                 <button onclick="processPay()">Потвърди</button>
-
             </div>
         </div>
     `;
@@ -225,57 +218,31 @@ function processPay() {
     let chng = 0;
 
     for (const m of unpd) {
-        const due = parseFloat(m.amount_due);
+        const due = parseFloat(m.amount_due) || 0;
         if (rem >= due) {
-            pd.push({ month_id: m.month_id, year: m.year, month_name: m.month_name });
+            pd.push({ month_id: m.month_id, year: m.year, month_name: m.month_name, amount_due: due });
             rem -= due;
-        } else {
-            break;
-        }
+        } else break;
     }
 
-    if (rem > 0) {
-        chng = rem;
-    }
+    if (rem > 0) chng = rem;
 
     const resDiv = document.getElementById('payResult');
     resDiv.style.display = 'block';
     resDiv.innerHTML = `
         <strong>Резултат:</strong><br>
         Платени месеци: ${pd.length > 0 ? pd.map(p => `${p.month_name} ${p.year}`).join(', ') : 'Няма'}<br>
-        ${chng > 0 ? `<strong style="color: orange;">Ресто: ${chng.toFixed(2)} €</strong>` : ''}
+        ${chng > 0 ? `<strong style="color: orange;">Ресто: ${chng.toFixed(2)} €</strong>` : ''} 
         ${pd.length > 0 ? '<br><button onclick="confirmPay(' + JSON.stringify(pd).replace(/"/g, "'") + ')">Запиши</button>' : ''}
     `;
 }
 
-async function sendToPrinter(studentName, paidMonths, method) {
-    const today = new Date().toLocaleDateString('bg-BG');
-    const monthsString = paidMonths.map(m => `${m.month_name} ${m.year}`).join(', ');
-
-    const receiptData = {
-        date: today,
-        student_name: studentName,
-        months: monthsString,
-        method: method === 'cash' ? 'В брой' : 'По банков път'
-    };
-
-    try {
-        const response = await fetch('http://localhost:5001/print-receipt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(receiptData)
-        });
-        const result = await response.json();
-        if (!result.success) console.error('Грешка при принтера:', result.error);
-    } catch (err) {
-        console.error('Принтер сървърът не е достъпен. Проверете дали Python скриптът работи.', err);
-    }
-}
-
 function confirmPay(paidMnths) {
-    const payMeth = document.getElementById('payMethod').value;
+    if (!paidMnths || paidMnths.length === 0) return;
+
     const student = currentData.student;
-    const totalEuro = paidMnths.reduce((sum, m) => sum + parseFloat(m.amount_due), 0);
+    const totalEuro = parseFloat(paidMnths.reduce((sum, m) => sum + (parseFloat(m.amount_due) || 0), 0).toFixed(2));
+    const payMeth = document.getElementById('payMethod').value === 'bank_transfer' ? 'bank transfer' : 'cash';
 
     fetch(`/api/students/${student.id}/process-payment`, {
         method: 'POST',
@@ -308,5 +275,9 @@ function confirmPay(paidMnths) {
         } else {
             alert('Грешка: ' + (d.error || 'Unknown'));
         }
+    })
+    .catch(err => {
+        console.error('Грешка при запис на плащането:', err);
+        alert('Грешка при запис на плащането.');
     });
 }
