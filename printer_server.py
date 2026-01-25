@@ -1,4 +1,5 @@
 import win32print
+import win32ui
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
@@ -6,73 +7,86 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/print-receipt', methods=['POST'])
-def print_receipt():
-    data = request.json
-    try:
-        EIK = "831917834"
-        UNP = "DT279755-0001-0017121"
-        EXCHANGE_RATE = 1.95583
+PRINTER_NAME = win32print.GetDefaultPrinter()
+EXCHANGE_RATE = 1.95583
 
-        amount_euro = float(data['amount_euro'])
+
+def print_text_windows(printer_name, text_lines):
+    hDC = win32ui.CreateDC()
+    hDC.CreatePrinterDC(printer_name)
+
+    hDC.StartDoc("Receipt")
+    hDC.StartPage()
+
+    font = win32ui.CreateFont({
+        "name": "Courier New",
+        "height": 22,
+        "weight": 400,
+    })
+    hDC.SelectObject(font)
+
+    x = 100
+    y = 100
+    line_height = 28
+
+    for line in text_lines:
+        hDC.TextOut(x, y, line)
+        y += line_height
+
+    hDC.EndPage()
+    hDC.EndDoc()
+    hDC.DeleteDC()
+
+
+@app.route("/print-receipt", methods=["POST"])
+def print_receipt():
+    try:
+        data = request.json
+        print("Received JSON:", data)
+
+        if not data.get("amount_euro"):
+            return jsonify({"success": False, "error": "Missing amount_euro"}), 400
+
+        amount_euro = float(data["amount_euro"])
         amount_bg = round(amount_euro * EXCHANGE_RATE, 2)
-        
+
         receipt = [
-            "      НПГ по КСТ ПРАВЕЦ при ТУ-СОФИЯ",
-            "            ПРАВЕЦ УЛ.ПЕРУША 4",
-            f"              ЕИК: {EIK}",
-            "                     КАСА",
-            "            ПРАВЕЦ УЛ.ПЕРУША 4",
-            f"            ЗДДС N:BG {EIK}",
+            "НПГ по КСТ ПРАВЕЦ при ТУ-СОФИЯ",
+            "ПРАВЕЦ, ул. Перуша 4",
             "",
-            f"00001                                #01",
-            f"        УНП: {UNP}",
-            "#ФАКТУРА ОРИГИНАЛ                       #",
-            f"#Номер фактура: {data['invoice_num']:010d}             #",
-            f"#Дата          : {datetime.now().strftime('%d-%m-%Y')}             #",
-            f"#Касиер        : {data['cashier']}                    #",
-            f"#Получено от   :                        #",
-            f"#{data['student_name'][:25]:<25}      #",
-            f"#ЕГН           : {data['egn']}              #",
-            f"#Факултет:ТМТ Спец: Н                  #",
-            f"#Фак.No: {data['class_num']}                        #",
-            f"#Курс:0 Блок: {data['block']} Стая: {data['room']}           #",
-            "#---------------------------------------#",
-            f"#Месец: {data['months'][:23]:<23} #",
-            f"НАЕМ                          {amount_bg:>7.2f} A",
-            "-----------------------------------------",
-            f"ОБЩА СУМА ЛВ                 {amount_bg:>7.2f}",
-            f"ОБЩА СУМА В ЕВРО              {amount_euro:>7.2f}",
-            f"ОБМ. КУРС 1 ЕВРО = {EXCHANGE_RATE} ЛВ",
-            f"{'В БРОЙ ЛВ' if data['method'] == 'cash' else 'БАНК ПЪТ':<15}              {amount_bg:>7.2f}",
-            "          БЛАГОДАРИМ ВИ!       ",
-            "             1 АРТИКУЛ",
-            f"0019153 0006          {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}",
+            f"Дата: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}",
+            f"Касиер: {data.get('cashier', '')}",
             "",
-            "        [ QR CODE SIMULATION ]",
+            f"Студент: {data.get('student_name', '')}",
+            f"ЕГН: {data.get('egn', '')}",
+            f"Клас: {data.get('class_num', '')}",
+            f"Блок: {data.get('block', '')}  Стая: {data.get('room', '')}",
             "",
-            "          ФИСКАЛЕН БОН",
-            f"DT279755                      02279755",
-            "10BF992BB44A5E288FF4468E695812CF8C35F5D",
-            "\n\n\n"
+            f"Месеци: {data.get('months', '')}",
+            "",
+            f"Сума EUR: {amount_euro:.2f}",
+            f"Сума BGN: {amount_bg:.2f}",
+            f"Курс: 1 EUR = {EXCHANGE_RATE}",
+            "",
+            "Метод на плащане:",
+            "В БРОЙ" if data.get("method") == "cash" else "ПО БАНКОВ ПЪТ",
+            "",
+            f"Фактура №: {data.get('invoice_num')}",
+            "",
+            "------------------------------",
+            "БЛАГОДАРИМ ВИ!",
         ]
 
-        receipt_text = "\n".join(receipt)
-        
-        printer_name = win32print.GetDefaultPrinter()
-        hPrinter = win32print.OpenPrinter(printer_name)
-        try:
-            hJob = win32print.StartDocPrinter(hPrinter, 1, ("Receipt", None, "RAW"))
-            win32print.StartPagePrinter(hPrinter)
-            win32print.WritePrinter(hPrinter, receipt_text.encode('cp1251'))
-            win32print.EndPagePrinter(hPrinter)
-            win32print.EndDocPrinter(hPrinter)
-        finally:
-            win32print.ClosePrinter(hPrinter) 
+        print("Using printer:", PRINTER_NAME)
+        print_text_windows(PRINTER_NAME, receipt)
 
         return jsonify({"success": True}), 200
+
     except Exception as e:
+        print("PRINT ERROR:", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
+    print("Using printer:", PRINTER_NAME)
     app.run(port=5001)
