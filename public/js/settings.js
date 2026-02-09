@@ -25,9 +25,7 @@ async function renderUnifiedSettings() {
         container.innerHTML = `
             <table class="data-table">
                 <thead>
-                    <tr>
-                        <th colspan="4">Глобална такса</th>
-                    </tr>
+                    <tr><th colspan="4">Глобална такса</th></tr>
                 </thead>
                 <tbody>
                     <tr>
@@ -74,6 +72,18 @@ async function renderUnifiedSettings() {
                         `;
                     }).join('')}
                 </tbody>
+                <tfoot class="table-footer-actions">
+                    <tr>
+                        <td colspan="4" class="footer-right">
+                            <div class="footer-flex-container">
+                                <span id="saveStatus"></span>
+                                <button onclick="saveMonthDays()" class="btn-save-all">
+                                    Запази всички месеци
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </tfoot>
             </table>
         `;
     } catch (err) {

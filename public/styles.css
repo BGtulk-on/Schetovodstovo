@@ -200,3 +200,31 @@ body {
     color: black;
     border-color: black;
 }
+
+/*settings buton*/
+.table-footer-actions {
+    background-color: #f9f9f9;
+}
+
+.footer-right {
+    padding: 15px; 
+    border-top: 2px solid #eee;
+}
+
+.footer-flex-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-save-all {
+    padding: 8px 20px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.3s;
+}
+
+#saveStatus {
+    font-size: 0.9em;
+    color: black;
+}
