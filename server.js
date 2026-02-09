@@ -93,8 +93,8 @@ app.get('/api/rooms', requireLogin, async (req, res) => {
     try {
         const query = `
             SELECT r.*, 
-                   COUNT(s.id)::int as current_occupancy,
-                   STRING_AGG(DISTINCT s.class_number, ', ') as class_numbers
+            COUNT(s.id)::int as current_occupancy,
+            STRING_AGG(DISTINCT s.class_number, ', ') as class_numbers
             FROM rooms r 
             LEFT JOIN students s ON r.id = s.room_id 
             WHERE r.is_in_use = TRUE 
@@ -147,8 +147,10 @@ app.post('/api/students', requireLogin, async (req, res) => {
         phone, parent_phone, email, sex, family_status_id,
         punishments, block, room_id, payment_method, notes
     } = req.body;
-
+    
     try {
+        const settingsRes = await pool.query("SELECT value FROM settings WHERE key = 'base_fee'");
+        const baseFee = settingsRes.rows.length > 0 ? settingsRes.rows[0].value : '11.00';
 
         const roomCheck = await pool.query(
             'SELECT capacity, (SELECT COUNT(*) FROM students WHERE room_id = $1)::int as count FROM rooms WHERE id = $1',
@@ -168,14 +170,14 @@ app.post('/api/students', requireLogin, async (req, res) => {
             INSERT INTO students (
                 first_name, last_name, egn, class_number, from_address, 
                 phone, parent_phone, email, sex, family_status_id, 
-                punishments, block, room_id, payment_method, fee, notes
+                punishments, block, room_id, fee, payment_method, notes
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING id
         `;
         const values = [
             first_name, last_name, egn, class_number, from_address,
             phone, parent_phone, email, sex, family_status_id,
-            punishments || 0, block, room_id, payment_method, baseFee, notes
+            punishments || 0, block, room_id, baseFee, payment_method, notes
         ];
         const result = await pool.query(query, values);
         res.json({ success: true, id: result.rows[0].id });

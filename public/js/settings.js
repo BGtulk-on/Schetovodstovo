@@ -1,129 +1,174 @@
 async function renderSettings(cont) {
     cont.innerHTML = `
-        <h3>Настройки</h3>
-        <div style="margin-bottom: 20px;">
-            <label for="settingsView">Изберете настройка: </label>
-            <select id="settingsView" onchange="switchView(this.value)">
-                <option value="mult">Дължими такси (Множители)</option>
-                <option value="base">Основна такса</option>
-            </select>
+        <h3>Настройки на системата</h3>
+        <div id="settingsContent">
+            <p>Зареждане на данни...</p>
         </div>
-        <div id="settingsContent"></div>
     `;
-
-    switchView('mult');
+    await renderUnifiedSettings();
 }
 
-async function switchView(v) {
-    const c = document.getElementById('settingsContent');
-    c.innerHTML = '<p>Зареждане...</p>';
-
-    if (v === 'mult') await renMult(c);
-    else if (v === 'base') await renBase(c);
-}
-
-async function renMult(div) {
+async function renderUnifiedSettings() {
+    const container = document.getElementById('settingsContent');
     try {
-        const r = await fetch('/api/months');
-        const m = await r.json();
+        const [feeResp, monthsResp] = await Promise.all([
+            fetch('/api/settings/base-fee'),
+            fetch('/api/months')
+        ]);
+        
+        const feeData = await feeResp.json();
+        const months = await monthsResp.json();
 
-        const order = {
-            'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
-            'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
-        };
-        m.sort((a, b) => (order[a.month_name] || 99) - (order[b.month_name] || 99));
+        const order = { 'September': 1, 'October': 2, 'November': 3, 'December': 4, 'January': 5, 'February': 6, 'March': 7, 'April': 8, 'May': 9, 'June': 10 };
+        months.sort((a, b) => (order[a.month_name] || 99) - (order[b.month_name] || 99));
 
-        let h = `
-            <h4>Настройка на такси по месеци</h4>
+        container.innerHTML = `
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Месец</th>
-                        <th>Множител</th>
-                        <th>Действие</th>
+                        <th colspan="4">Глобална такса</th>
                     </tr>
                 </thead>
                 <tbody>
+                    <tr>
+                        <td><b>Дневна такса (€):</b></td>
+                        <td><input type="number" step="0.01" id="dailyFeeInput" value="${feeData.value}" style="width: 60px;"></td>
+                        <td>
+                            <input type="checkbox" id="updateAllStudents" checked> Обнови дневната такса за всички ученици
+                        </td>
+                        <td align="right"><button onclick="saveDailyFee()">Запази такса</button></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <br>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th width="50">Статус</th>
+                        <th>Месец</th>
+                        <th width="100">Работни дни</th>
+                        <th width="80">Действие</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${months.map(m => {
+                        const days = Math.round(m.fee_multiplier || 0);
+                        const isActive = days > 0;
+                        return `
+                            <tr>
+                                <td align="center">
+                                    <input type="checkbox" id="check-${m.id}" ${isActive ? 'checked' : ''} onchange="toggleMonthRow(${m.id})">
+                                </td>
+                                <td>${m.month_name}</td>
+                                <td>
+                                    <input type="number" id="days-${m.id}" value="${days}" min="0" max="31" step="1"
+                                           oninput="this.value=Math.round(this.value)" ${!isActive ? 'disabled' : ''} 
+                                           style="width: 50px;">
+                                </td>
+                                <td align="center">
+                                    <button onclick="saveSingleMonth(${m.id})">Запази</button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
         `;
-
-        m.forEach(x => {
-            h += `
-                <tr>
-                    <td>${x.month_name}</td>
-                    <td>
-                        <input type="number" step="0.01" value="${x.fee_multiplier}" id="mult-${x.id}" class=" multiplier-input ">
-                    </td>
-                    <td>
-                        <button onclick="updMult(${x.id})">Запиши</button>
-                    </td>
-                </tr>
-            `;
-        });
-
-        h += `</tbody></table>`;
-        div.innerHTML = h;
-
     } catch (err) {
-        div.innerHTML = '<p class="error">Error</p>';
+        container.innerHTML = "Грешка при зареждане.";
     }
 }
 
-async function updMult(id) {
-    const v = document.getElementById(`mult-${id}`).value;
+async function saveDailyFee() {
+    const dailyFee = document.getElementById('dailyFeeInput').value;
+    const updateAll = document.getElementById('updateAllStudents').checked;
     try {
-        const r = await fetch(`/api/months/${id}`, {
+        const r = await fetch('/api/settings/base-fee', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fee_multiplier: v })
+            body: JSON.stringify({ base_fee: dailyFee, update_all: updateAll })
         });
-        if (r.ok) alert('Ok');
-        else alert('Err');
-    } catch (e) {
-        alert('Error');
-    }
+        if (r.ok) alert('Таксата е обновена');
+    } catch (err) { alert('Грешка'); }
 }
 
-async function renBase(div) {
+async function saveSingleMonth(id) {
+    const isChecked = document.getElementById(`check-${id}`).checked;
+    const days = isChecked ? Math.round(document.getElementById(`days-${id}`).value) : 0;
     try {
-        const r = await fetch('/api/settings/base-fee');
-        const d = await r.json();
-
-        div.innerHTML = `
-            <h4>Настройка на основна месечна такса</h4>
-            <div class="form-group">
-                <label>Основна такса (€): </label>
-                <input type="number" step="0.01" id="baseFeeInput" value="${d.value}">
-            </div>
-            <div class="form-group" style="margin-top: 10px;">
-                <label>
-                    <input type="checkbox" id="updateAll" style="width: auto; margin-right: 5px;" checked>
-                    Обнови таксата на всички текущи ученици
-                </label>
-            </div>
-            <button onclick="saveBase()" style="margin-top: 15px;">Запиши</button>
-        `;
-
-    } catch (e) {
-        div.innerHTML = '<p>Error</p>';
-    }
+        const resp = await fetch(`/api/months/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fee_multiplier: days })
+        });
+        if (resp.ok) alert('Запазено');
+    } catch (err) { alert('Грешка'); }
 }
 
-async function saveBase() {
-    const f = document.getElementById('baseFeeInput').value;
-    const all = document.getElementById('updateAll').checked;
+function toggleMonthRow(id) {
+    const chk = document.getElementById(`check-${id}`);
+    const inp = document.getElementById(`days-${id}`);
+    inp.disabled = !chk.checked;
+    if (!chk.checked) inp.value = 0;
+}
 
-    if (!f) return alert('Input amount');
-    if (all && !confirm('Sure?')) return;
+function validateDays(input) {
+    let val = parseInt(input.value);
+    if (isNaN(val) || val < 0) input.value = 0;
+    if (val > 31) input.value = 31;
+}
+
+function toggleMonthRow(id) {
+    const checkbox = document.getElementById(`check-${id}`);
+    const input = document.getElementById(`days-${id}`);
+    input.disabled = !checkbox.checked;
+    if (!checkbox.checked) input.value = 0;
+}
+
+async function saveDailyFee() {
+    const dailyFee = document.getElementById('dailyFeeInput').value;
+    const updateAll = document.getElementById('updateAllStudents').checked;
+    
+    if (!dailyFee) return alert('Въведете сума');
 
     try {
         const r = await fetch('/api/settings/base-fee', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ base_fee: f, update_all: all })
+            body: JSON.stringify({ base_fee: dailyFee, update_all: updateAll })
+        });
+        if (r.ok) alert('Дневната такса е запазена!');
+        else alert('Грешка при запис на такса');
+    } catch (err) {
+        alert('Сървърна грешка');
+    }
+}
+
+async function saveMonthDays() {
+    const statusDiv = document.getElementById('saveStatus');
+    statusDiv.innerHTML = "Записване на месеците...";
+
+    try {
+        const monthInputs = document.querySelectorAll('input[id^="days-"]');
+        const promises = Array.from(monthInputs).map(input => {
+            const id = input.id.split('-')[1];
+            const isChecked = document.getElementById(`check-${id}`).checked;
+            const days = isChecked ? input.value : 0;
+            
+            return fetch(`/api/months/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fee_multiplier: days })
+            });
         });
 
-        if (r.ok) alert('Updated');
-        else alert('Error');
-
-    } catch (e) { alert('Error') }
+        await Promise.all(promises);
+        statusDiv.innerHTML = "Дните са обновени успешно!";
+        alert('Дните по месеци са запазени!');
+    } catch (err) {
+        statusDiv.innerHTML = "Грешка!";
+        alert('Неуспешно обновяване на месеците');
+    }
 }

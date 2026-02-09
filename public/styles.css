@@ -180,3 +180,23 @@ body {
 .hidden {
     display: none !important;
 }
+
+/*reports buttons*/
+.report-tabs {
+    margin-bottom: 15px;
+}
+
+.tab-btn {
+    padding: 8px 15px;
+    border: 1px solid #ccc;
+    background: #f0f0f0;
+    cursor: pointer;
+    font-weight: bold;
+    margin-right: 2px;
+}
+
+.tab-btn.active {
+    background: white;
+    color: black;
+    border-color: black;
+}
