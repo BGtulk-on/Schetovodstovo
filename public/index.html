@@ -1,28 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bg">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Schetovodstvo - Login</title>
+    <title>Счетоводство - Вход</title>
 
     <link rel="stylesheet" href="styles.css">
 </head>
 
 <body class="login-page">
     <div class="login-card">
-        <h1>Schetovodstvo</h1>
+        <h1>Счетоводство</h1>
         <form id="loginForm">
             <div class="form-group">
-                <label for="username">Username</label>
+                <label for="username">Потребител</label>
                 <input type="text" id="username" required autocomplete="username">
             </div>
             <div class="form-group">
-                <label for="password">Password</label>
+                <label for="password">Парола</label>
                 <input type="password" id="password" required autocomplete="current-password">
             </div>
-            <button type="submit">Log In</button>
-            <div id="error" class="error">Invalid username or password</div>
+            <button type="submit">Вход</button>
+            <div id="error" class="error">Грешно потребителско име или парола</div>
         </form>
     </div>
 
@@ -48,7 +48,7 @@
                 }
             } catch (err) {
                 console.error(err);
-                alert('Connection error. Is the server running?');
+                alert('Грешка при свързване. Сървърът работи ли?');
             }
         });
 

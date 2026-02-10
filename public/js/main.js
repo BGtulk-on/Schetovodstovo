@@ -8,7 +8,7 @@ async function init() {
         window.location.href = '/index.html';
     } else {
         document.getElementById('app').style.display = 'block';
-        document.getElementById('userRole').textContent = `Role: ${data.role.toUpperCase()}`;
+        document.getElementById('userRole').textContent = `${data.role.toUpperCase()}`;
         navigate('students');
     }
 }

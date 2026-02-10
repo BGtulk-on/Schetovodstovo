@@ -15,12 +15,11 @@ async function renderUnifiedSettings() {
             fetch('/api/settings/base-fee'),
             fetch('/api/months')
         ]);
-        
+
         const feeData = await feeResp.json();
         const months = await monthsResp.json();
 
-        const order = { 'September': 1, 'October': 2, 'November': 3, 'December': 4, 'January': 5, 'February': 6, 'March': 7, 'April': 8, 'May': 9, 'June': 10 };
-        months.sort((a, b) => (order[a.month_name] || 99) - (order[b.month_name] || 99));
+        months.sort((a, b) => a.id - b.id);
 
         container.innerHTML = `
             <table class="data-table">
@@ -52,9 +51,9 @@ async function renderUnifiedSettings() {
                 </thead>
                 <tbody>
                     ${months.map(m => {
-                        const days = Math.round(m.fee_multiplier || 0);
-                        const isActive = days > 0;
-                        return `
+            const days = Math.round(m.fee_multiplier || 0);
+            const isActive = days > 0;
+            return `
                             <tr>
                                 <td align="center">
                                     <input type="checkbox" id="check-${m.id}" ${isActive ? 'checked' : ''} onchange="toggleMonthRow(${m.id})">
@@ -70,7 +69,7 @@ async function renderUnifiedSettings() {
                                 </td>
                             </tr>
                         `;
-                    }).join('')}
+        }).join('')}
                 </tbody>
                 <tfoot class="table-footer-actions">
                     <tr>
@@ -140,7 +139,7 @@ function toggleMonthRow(id) {
 async function saveDailyFee() {
     const dailyFee = document.getElementById('dailyFeeInput').value;
     const updateAll = document.getElementById('updateAllStudents').checked;
-    
+
     if (!dailyFee) return alert('Въведете сума');
 
     try {
@@ -166,7 +165,7 @@ async function saveMonthDays() {
             const id = input.id.split('-')[1];
             const isChecked = document.getElementById(`check-${id}`).checked;
             const days = isChecked ? input.value : 0;
-            
+
             return fetch(`/api/months/${id}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

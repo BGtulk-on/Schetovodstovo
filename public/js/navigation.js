@@ -21,6 +21,6 @@ async function navigate(page) {
     } else if (page === 'pay') {
         renderPay(content);
     } else {
-        content.innerHTML = `<h3>${page}</h3><p>Work in progress...</p>`;
+        content.innerHTML = `<h3>${page}</h3><p>В процес на разработка...</p>`;
     }
 }

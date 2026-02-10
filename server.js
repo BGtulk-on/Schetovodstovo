@@ -147,7 +147,7 @@ app.post('/api/students', requireLogin, async (req, res) => {
         phone, parent_phone, email, sex, family_status_id,
         punishments, block, room_id, payment_method, notes
     } = req.body;
-    
+
     try {
         const settingsRes = await pool.query("SELECT value FROM settings WHERE key = 'base_fee'");
         const baseFee = settingsRes.rows.length > 0 ? settingsRes.rows[0].value : '11.00';
@@ -281,18 +281,30 @@ app.get('/api/students/:id/payment-status', requireLogin, async (req, res) => {
         const status = [];
 
         const monthMap = {};
-        months.forEach(m => monthMap[m.month_name] = m);
-        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        months.forEach(m => monthMap[m.id] = m);
 
         while (currentIter <= now) {
             const year = currentIter.getFullYear();
             const monthIndex = currentIter.getMonth();
-            const monthName = monthNames[monthIndex];
-            const dbMonth = monthMap[monthName];
+            const dbMonth = monthMap[monthIndex + 1];
 
             if (dbMonth && parseFloat(dbMonth.fee_multiplier) > 0) {
                 const payment = payments.find(p => p.month_id === dbMonth.id && p.year === year);
-                const amountDue = (parseFloat(student.fee) * parseFloat(dbMonth.fee_multiplier)).toFixed(2);
+
+                let amountDue;
+                if (payment && payment.is_paid && payment.amount_paid !== null) {
+                    amountDue = parseFloat(payment.amount_paid).toFixed(2);
+                } else {
+                    let useFee = parseFloat(student.fee);
+                    if (student.fee_changed_at && student.previous_fee !== null) {
+                        const chngDate = new Date(student.fee_changed_at);
+                        const chngMonth = new Date(chngDate.getFullYear(), chngDate.getMonth(), 1);
+                        if (currentIter < chngMonth) {
+                            useFee = parseFloat(student.previous_fee);
+                        }
+                    }
+                    amountDue = (useFee * parseFloat(dbMonth.fee_multiplier)).toFixed(2);
+                }
 
                 status.push({
                     month_id: dbMonth.id,
@@ -334,11 +346,11 @@ app.post('/api/students/:id/process-payment', requireLogin, async (req, res) => 
     try {
         for (const p of payments) {
             await pool.query(
-                `INSERT INTO student_payments (student_id, month_id, year, is_paid, payment_date, payment_method)
-                 VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP, $4)
+                `INSERT INTO student_payments (student_id, month_id, year, is_paid, payment_date, payment_method, amount_paid)
+                 VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP, $4, $5)
                  ON CONFLICT (student_id, month_id, year)
-                 DO UPDATE SET is_paid = true, payment_date = CURRENT_TIMESTAMP, payment_method = $4`,
-                [studentId, p.month_id, p.year, payment_method]
+                 DO UPDATE SET is_paid = true, payment_date = CURRENT_TIMESTAMP, payment_method = $4, amount_paid = $5`,
+                [studentId, p.month_id, p.year, payment_method, p.amount_due]
             );
         }
         res.json({ success: true });
@@ -438,7 +450,12 @@ app.post('/api/settings/base-fee', requireLogin, async (req, res) => {
         await pool.query("INSERT INTO settings (key, value) VALUES ('base_fee', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [base_fee]);
 
         if (update_all) {
-            await pool.query("UPDATE students SET fee = $1", [base_fee]);
+            await pool.query(
+                `UPDATE students 
+                 SET previous_fee = fee, fee_changed_at = CURRENT_TIMESTAMP, fee = $1 
+                 WHERE fee != $1`,
+                [base_fee]
+            );
         }
 
         res.json({ success: true });

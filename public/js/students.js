@@ -116,7 +116,7 @@ function renderStudentTable(data) {
                     <th>Блок</th>
                     <th>Стая</th>
                     <th>Пол</th>
-                    <th>Такса</th>
+
                     <th>Действие</th>
                 </tr>
             </thead>
@@ -131,9 +131,9 @@ function renderStudentTable(data) {
                 <td>${s.egn}</td>
                 <td>${s.class_number}</td>
                 <td>${s.block}</td>
-                <td>${s.room_number || 'N/A'}</td>
+                <td>${s.room_number || '-'}</td>
                 <td>${s.sex === 'male' ? 'М' : 'Ж'}</td>
-                <td>${s.fee}€</td>
+
                 <td><button onclick="renderStudentForm(document.getElementById('content'), 'edit', ${s.id})">Редактирай</button></td>
             </tr>
         `;

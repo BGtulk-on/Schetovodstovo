@@ -39,7 +39,7 @@ function handleSearch(q) {
         resDiv.innerHTML = res.map(s => `
             <div class="search-item" onclick="selStudent(${s.id})">
                 <strong>${s.first_name} ${s.last_name}</strong><br>
-                <small>ЕГН: ${s.egn} | Клас: ${s.class_number} | Стая: ${s.room_number || 'N/A'}</small>
+                <small>ЕГН: ${s.egn} | Клас: ${s.class_number} | Стая: ${s.room_number || '-'}</small>
             </div>
         `).join('');
         resDiv.style.display = 'block';
@@ -147,7 +147,7 @@ async function selStudent(id) {
 
     } catch (e) {
         console.error(e);
-        detDiv.innerHTML = `<p class="error">Error loading details</p>`;
+        detDiv.innerHTML = `<p class="error">Грешка при зареждане</p>`;
     }
 }
 
@@ -171,7 +171,7 @@ function openPayModal() {
     mdl.innerHTML = `
         <div style="background: white; padding: 30px; border-radius: 10px; max-width: 400px; width: 90%;">
             <h3>Плащане на такси</h3>
-            <p><strong>Student:</strong> ${currentData.student.first_name} ${currentData.student.last_name}</p>
+            <p><strong>Ученик:</strong> ${currentData.student.first_name} ${currentData.student.last_name}</p>
             <p><strong>Общо дължимо:</strong> ${tot} €</p>
             <p><strong>Неплатени месеци:</strong> ${unpd.length}</p>
             <div style="margin: 20px 0;">
@@ -209,8 +209,7 @@ function processPay() {
 
     const unpd = currentData.months.filter(m => !m.is_paid).sort((a, b) => {
         if (a.year !== b.year) return a.year - b.year;
-        const ord = { 'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6, 'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12 };
-        return (ord[a.month_name] || 0) - (ord[b.month_name] || 0);
+        return a.month_id - b.month_id;
     });
 
     let rem = amt;
@@ -249,35 +248,35 @@ function confirmPay(paidMnths) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payments: paidMnths, payment_method: payMeth })
     })
-    .then(r => r.json())
-    .then(d => {
-        if (d.success) {
-            fetch('http://localhost:5001/print-receipt', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    student_name: `${student.first_name} ${student.last_name}`,
-                    egn: student.egn,
-                    class_num: student.class_number,
-                    block: student.block,
-                    room: student.room_number || 'N/A',
-                    months: paidMnths.map(m => m.month_name).join(', '),
-                    amount_euro: totalEuro,
-                    method: payMeth,
-                    invoice_num: Math.floor(Math.random() * 100000),
-                    cashier: "ADMIN"
-                })
-            });
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                fetch('http://localhost:5001/print-receipt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        student_name: `${student.first_name} ${student.last_name}`,
+                        egn: student.egn,
+                        class_num: student.class_number,
+                        block: student.block,
+                        room: student.room_number || '-',
+                        months: paidMnths.map(m => m.month_name).join(', '),
+                        amount_euro: totalEuro,
+                        method: payMeth,
+                        invoice_num: Math.floor(Math.random() * 100000),
+                        cashier: "ADMIN"
+                    })
+                });
 
-            alert('Плащането е записано успешно!');
-            closePayModal();
-            selStudent(student.id);
-        } else {
-            alert('Грешка: ' + (d.error || 'Unknown'));
-        }
-    })
-    .catch(err => {
-        console.error('Грешка при запис на плащането:', err);
-        alert('Грешка при запис на плащането.');
-    });
+                alert('Плащането е записано успешно!');
+                closePayModal();
+                selStudent(student.id);
+            } else {
+                alert('Грешка: ' + (d.error || 'Неизвестна'));
+            }
+        })
+        .catch(err => {
+            console.error('Грешка при запис на плащането:', err);
+            alert('Грешка при запис на плащането.');
+        });
 }

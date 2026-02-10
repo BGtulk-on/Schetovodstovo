@@ -26,7 +26,7 @@ function renderRoomTable(data) {
         html += `
             <tr>
                 <td>${r.room_number}</td>
-                <td>${r.capacity}</td>
+                <td>${r.capacity === 3 ? 'Г' : 'М'}</td>
                 <td>${occupancy} / ${free}</td>
                 <td>${r.class_numbers || '-'}</td>
                 <td>${r.has_problem ? 'Проблем: ' + r.problem_details : 'OK'}</td>
